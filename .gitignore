@@ -1,0 +1,3 @@
+# L'exe est publié dans les Releases, pas dans le code
+*.exe
+obj/
