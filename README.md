@@ -13,16 +13,30 @@ Quand Claude prend le contrôle de ton ordinateur (l'outil « computer use » de
 - Dès que tu bouges ta souris, **tu la récupères à cet endroit**. Le curseur orange de Claude reste affiché là où il travaillait, puis s'efface quand Claude a fini.
 - Chaque clic de Claude fait une **onde orange**. Quand il tape au clavier, l'étiquette devient **« Claude écrit… »**.
 - Pendant un clic ou un glisser-déposer de Claude, ta souris attend **moins d'une seconde** (seul ton curseur dessiné bouge), pour que son clic ne parte pas au mauvais endroit.
+- **Trois apparences au choix** : la **lueur orange** (blanc, bord et halo orange, comme un néon), l'**orange plein**, ou **ta propre image**.
 
-Tous les curseurs de Windows ont leur version orange : flèche, main, barre de texte, redimensionnement, sablier…
+Tous les curseurs de Windows ont leur version Claude : flèche, main, barre de texte, redimensionnement, sablier…
 
-![Les curseurs orange de Claude (en haut) et les copies de tes curseurs (en bas)](assets/curseurs.png)
+![Orange plein (lignes 1-2), lueur orange (lignes 3-4) et les copies de tes curseurs (lignes 5-6)](assets/curseurs.png)
+
+## Changer l'apparence
+
+Double-clique sur la flèche orange près de l'horloge (ou relance l'appli) : la fenêtre **Paramètres** s'ouvre.
+
+![La fenêtre Paramètres](assets/parametres.png)
+
+- **Lueur orange (la nouvelle)** : blanc, bord et halo orange. C'est le choix de départ.
+- **Orange (l'ancienne)** : orange plein, contour foncé.
+- **Mon image** : clique sur **Choisir une image…**. Un PNG transparent convient (sa pointe est son point le plus en haut à gauche, et il est réduit à la taille d'un curseur), un vrai curseur `.cur` ou `.ani` aussi. L'image est copiée dans le dossier de l'appli, tu peux donc déplacer l'original.
+- Tu peux aussi changer la **couleur** (étiquette, bord, halo, cercles des clics) et le **texte de l'étiquette**.
+
+Chaque changement s'applique tout de suite, même pendant que Claude a la main.
 
 ## Installer
 
 1. Télécharge `CurseurClaude.exe` dans les [Releases](../../releases) et mets-le dans un dossier à toi.
 2. Double-clique dessus. Windows peut afficher « Windows a protégé votre ordinateur » (l'exe n'est pas signé) : clique sur **Informations complémentaires**, puis sur **Exécuter quand même**.
-3. Une **flèche orange** apparaît près de l'horloge (parfois cachée derrière la petite flèche **^**). Double-clique dessus pour voir une **démonstration**.
+3. Une **flèche orange** apparaît près de l'horloge (parfois cachée derrière la petite flèche **^**). Double-clique dessus pour ouvrir les **Paramètres**, qui ont un bouton **Démonstration**.
 
 L'appli se lance toute seule au démarrage de Windows. Tu peux changer ça dans son menu.
 
@@ -30,6 +44,8 @@ L'appli se lance toute seule au démarrage de Windows. Tu peux changer ça dans 
 
 | Choix | Effet |
 |---|---|
+| **Paramètres…** | Ouvre la fenêtre Paramètres (comme le double-clic sur l'icône). |
+| **Apparence du curseur** | Change vite de style : lueur orange, orange, ou ton image. |
 | **Activé** | Met l'appli en pause, ou la relance. |
 | **Faire une démonstration** | Le curseur orange fait un petit tour. Bouge ta souris pour l'arrêter. |
 | **Comment ça marche ?** | Un petit rappel. |
@@ -54,9 +70,9 @@ L'outil de contrôle de Claude masque en **rectangle noir**, sur ses captures, l
 
 ## Réglages
 
-Ils sont dans `%LOCALAPPDATA%\CurseurClaude\reglages.txt` : couleur, contour, texte de l'étiquette, durée d'affichage, signature des gestes de Claude (`marques=100`), journal détaillé. Si une mise à jour de l'appli Claude change la signature, il suffit de modifier `marques`.
+Ils sont dans `%LOCALAPPDATA%\CurseurClaude\reglages.txt` : style (`orange`, `lueur` ou `perso`), image perso, sa taille maximale (`taille=32`) et la position de sa pointe (`pointe=x,y`, vide = automatique), couleur, contour, texte de l'étiquette, durée d'affichage, signature des gestes de Claude (`marques=100`), journal détaillé. Si une mise à jour de l'appli Claude change la signature, il suffit de modifier `marques`.
 
-Commandes utiles : `CurseurClaude.exe --demo`, `--quitter`, `--etat` (écrit `etat.txt`), `--recharger` (relit les réglages), `--planche image.png` (dessine tous les curseurs dans une image).
+Commandes utiles : `CurseurClaude.exe --parametres`, `--demo`, `--quitter`, `--etat` (écrit `etat.txt`), `--recharger` (relit les réglages), `--planche image.png` (dessine tous les curseurs dans une image).
 
 ## Compiler soi-même
 

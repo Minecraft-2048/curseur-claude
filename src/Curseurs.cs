@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 
-// Les curseurs de Windows (flèche, main, barre de texte…) et leurs copies orange.
+// Les curseurs de Windows (flèche, main, barre de texte…) et leurs copies « Claude »
+// dans le style choisi (orange, lueur orange ou image perso).
 namespace CurseurClaude
 {
     sealed class Curseurs
@@ -9,68 +11,113 @@ namespace CurseurClaude
         /// OCR_NORMAL, IBEAM, WAIT, CROSS, UP, SIZENWSE, SIZENESW, SIZEWE, SIZENS, SIZEALL, NO, HAND, APPSTARTING, HELP, PIN, PERSON
         public static readonly uint[] Ids = { 32512, 32513, 32514, 32515, 32516, 32642, 32643, 32644, 32645, 32646, 32648, 32649, 32650, 32651, 32671, 32672 };
 
-        readonly IntPtr[] orange = new IntPtr[Ids.Length];
+        readonly IntPtr[] claude = new IntPtr[Ids.Length];
         readonly IntPtr[] originaux = new IntPtr[Ids.Length];
         readonly ImageCurseur[] sources = new ImageCurseur[Ids.Length];
-        int couleur, contour;
+        int couleur, contour, taillePerso;
+        string style, imagePerso, pointePerso;
+        ImageCurseur perso;
+        string clePerso;
 
-        /// Flèche orange (pour dessiner le curseur de Claude au repos).
-        public uint[] Fleche;
-        public int FlecheL, FlecheH, FlecheHx, FlecheHy;
+        /// La flèche de Claude dans le style actuel (pour la dessiner au repos).
+        public ImageCurseur Fleche { get; private set; }
+        /// Le style vraiment utilisé (« perso » retombe sur « lueur » si l'image est illisible).
+        public string StyleActif { get; private set; }
+        public string ErreurPerso { get; private set; }
 
         public bool Orange { get; private set; }
         public bool RechargementPrevu { get; private set; }
         int rechargerA;
 
-        public Curseurs(int couleur, int contour)
+        public Curseurs(Reglages r)
         {
-            this.couleur = couleur;
-            this.contour = contour;
+            Configurer(r);
             Rafraichir(true);
         }
 
-        public void ChangerCouleurs(int c, int k)
+        public void Configurer(Reglages r)
         {
-            couleur = c; contour = k;
-            Rafraichir(true);
+            couleur = r.Couleur;
+            contour = r.Contour;
+            style = Styles.Normaliser(r.Style);
+            imagePerso = r.ImagePerso;
+            taillePerso = r.TaillePerso;
+            pointePerso = r.PointePerso;
         }
 
-        /// Refait les copies orange si les curseurs de Windows ont changé (jamais pendant qu'ils sont orange).
+        /// Le curseur de Windows d'origine (avant toute transformation).
+        public ImageCurseur Source(uint id)
+        {
+            int i = Array.IndexOf(Ids, id);
+            return i >= 0 ? sources[i] : null;
+        }
+
+        /// Relit les curseurs de Windows (jamais pendant qu'ils sont remplacés) et refait les copies
+        /// s'ils ont changé. Renvoie le nombre de curseurs de Windows qui avaient changé.
         public int Rafraichir(bool forcer)
         {
             if (Orange) return 0;
-            int refaits = 0;
+            int changes = 0;
             for (int i = 0; i < Ids.Length; i++)
             {
                 ImageCurseur img = Rendu.Decoder(Natif.LoadCursor(IntPtr.Zero, new IntPtr(Ids[i])));
-                if (img == null) continue;
-                if (!forcer && orange[i] != IntPtr.Zero && img.MemesPixels(sources[i])) continue;
-                uint[] px = Rendu.Orange(img, couleur, contour);
-                IntPtr c = Rendu.CreerCurseur(px, img.L, img.H, img.Hx, img.Hy);
-                if (c == IntPtr.Zero) continue;
-                if (orange[i] != IntPtr.Zero) Natif.DestroyCursor(orange[i]);
-                orange[i] = c;
+                if (img == null || img.MemesPixels(sources[i])) continue;
                 sources[i] = img;
-                refaits++;
-                if (Ids[i] == 32512)
-                {
-                    Fleche = px; FlecheL = img.L; FlecheH = img.H; FlecheHx = img.Hx; FlecheHy = img.Hy;
-                }
+                changes++;
             }
-            return refaits;
+            if (changes > 0 || forcer) Regenerer();
+            return changes;
         }
 
-        /// Tous les curseurs de Windows passent en orange (on garde une copie des vrais).
+        /// Refait toutes les copies dans le style actuel. Si le vrai curseur est déjà à Claude,
+        /// le changement se voit tout de suite.
+        public void Regenerer()
+        {
+            StyleActif = style;
+            ErreurPerso = null;
+            ImageCurseur image = null;
+            if (style == Styles.Perso)
+            {
+                string cle = imagePerso + "|" + taillePerso + "|" + pointePerso + "|"
+                    + (File.Exists(imagePerso) ? File.GetLastWriteTimeUtc(imagePerso).Ticks.ToString() : "absent");
+                if (cle != clePerso)
+                {
+                    string erreur;
+                    perso = Styles.ChargerPerso(imagePerso, taillePerso, pointePerso, out erreur);
+                    ErreurPerso = erreur;
+                    clePerso = cle;
+                }
+                image = perso;
+                if (image == null)
+                {
+                    StyleActif = Styles.Lueur;
+                    if (ErreurPerso == null) ErreurPerso = "image illisible";
+                }
+            }
+            for (int i = 0; i < Ids.Length; i++)
+            {
+                if (sources[i] == null) continue;
+                ImageCurseur res = image ?? Styles.Appliquer(sources[i], StyleActif, couleur, contour);
+                IntPtr c = Rendu.CreerCurseur(res.Px, res.L, res.H, res.Hx, res.Hy);
+                if (c == IntPtr.Zero) continue;
+                if (claude[i] != IntPtr.Zero) Natif.DestroyCursor(claude[i]);
+                claude[i] = c;
+                if (Ids[i] == 32512) Fleche = res;
+                if (Orange) Natif.SetSystemCursor(Natif.CopyIcon(c), Ids[i]);
+            }
+        }
+
+        /// Tous les curseurs de Windows deviennent ceux de Claude (on garde une copie des vrais).
         public int MettreOrange()
         {
             if (Orange) return 0;
             int poses = 0;
             for (int i = 0; i < Ids.Length; i++)
             {
-                if (orange[i] == IntPtr.Zero) continue;
+                if (claude[i] == IntPtr.Zero) continue;
                 if (originaux[i] != IntPtr.Zero) Natif.DestroyCursor(originaux[i]);
                 originaux[i] = Natif.CopyIcon(Natif.LoadCursor(IntPtr.Zero, new IntPtr(Ids[i])));
-                if (Natif.SetSystemCursor(Natif.CopyIcon(orange[i]), Ids[i])) poses++;
+                if (Natif.SetSystemCursor(Natif.CopyIcon(claude[i]), Ids[i])) poses++;
             }
             Orange = true;
             RechargementPrevu = false;

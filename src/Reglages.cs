@@ -17,6 +17,10 @@ namespace CurseurClaude
         public string Etiquette = "Claude";
         public int DelaiRepos = 20;     // secondes pendant lesquelles le curseur de Claude reste affiché après son dernier geste
         public long[] Marques = { 100 }; // signature des événements de l'outil de contrôle de Claude
+        public string Style = Styles.Lueur; // orange, lueur ou perso
+        public string ImagePerso = "";      // image du style « perso »
+        public int TaillePerso = 32;        // taille maximale de l'image perso (pixels)
+        public string PointePerso = "";     // « x,y » de la pointe de l'image perso (vide = automatique)
         public bool Existait;
 
         public static string Dossier
@@ -49,6 +53,13 @@ namespace CurseurClaude
                         case "couleur": r.Couleur = Hexa(v, r.Couleur); break;
                         case "contour": r.Contour = Hexa(v, r.Contour); break;
                         case "etiquette": if (v.Length > 0) r.Etiquette = v; break;
+                        case "style": r.Style = Styles.Normaliser(v); break;
+                        case "image": r.ImagePerso = v; break;
+                        case "pointe": r.PointePerso = v; break;
+                        case "taille":
+                            int tp;
+                            if (int.TryParse(v, out tp)) r.TaillePerso = Math.Max(8, Math.Min(256, tp));
+                            break;
                         case "delai":
                             int d;
                             if (int.TryParse(v, out d)) r.DelaiRepos = Math.Max(2, Math.Min(3600, d));
@@ -87,6 +98,7 @@ namespace CurseurClaude
             Actif = o.Actif; Captures = o.Captures; JournalActif = o.JournalActif;
             Couleur = o.Couleur; Contour = o.Contour; Etiquette = o.Etiquette;
             DelaiRepos = o.DelaiRepos; Marques = o.Marques;
+            Style = o.Style; ImagePerso = o.ImagePerso; TaillePerso = o.TaillePerso; PointePerso = o.PointePerso;
         }
 
         public void Enregistrer()
@@ -98,6 +110,13 @@ namespace CurseurClaude
                 s.AppendLine("# Réglages du curseur orange de Claude.");
                 s.AppendLine("# Après une modification à la main : menu de l'icône > Quitter, puis relancer l'appli.");
                 s.AppendLine("actif=" + (Actif ? 1 : 0));
+                s.AppendLine("# apparence du curseur de Claude : orange (l'ancienne), lueur (la nouvelle) ou perso (une image à toi)");
+                s.AppendLine("style=" + Style);
+                s.AppendLine("# image du style perso (.png transparent, .cur, .ani…), sa taille maximale en pixels,");
+                s.AppendLine("# et la position x,y de sa pointe (vide = le point le plus en haut à gauche)");
+                s.AppendLine("image=" + ImagePerso);
+                s.AppendLine("taille=" + TaillePerso);
+                s.AppendLine("pointe=" + PointePerso);
                 s.AppendLine("# 1 = le curseur orange apparaît aussi sur les captures et les vidéos d'écran");
                 s.AppendLine("captures=" + (Captures ? 1 : 0));
                 s.AppendLine("# couleurs en hexadécimal RRVVBB");

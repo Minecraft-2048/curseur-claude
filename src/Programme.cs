@@ -14,7 +14,7 @@ namespace CurseurClaude
 {
     static class Programme
     {
-        public const string Version = "1.0";
+        public const string Version = "1.1";
 
         [STAThread]
         static int Main(string[] args)
@@ -37,7 +37,7 @@ namespace CurseurClaude
                 if (!premier)
                 {
                     // L'appli tourne déjà : on lui transmet la demande.
-                    string signal = "Bonjour";
+                    string signal = "Parametres"; // relancer l'appli ouvre ses paramètres
                     if (a0 == "--demo") signal = "Demo";
                     else if (a0 == "--quitter") signal = "Quitter";
                     else if (a0 == "--etat") signal = "Etat";
@@ -58,7 +58,7 @@ namespace CurseurClaude
                     Journal.Erreur("plantage : " + e.ExceptionObject);
                     try { Curseurs.Recharger(); } catch (Exception) { }
                 };
-                Application.Run(new Appli(a0 == "--demo"));
+                Application.Run(new Appli(a0 == "--demo", a0 == "--parametres"));
             }
             return 0;
         }
@@ -93,7 +93,7 @@ namespace CurseurClaude
     /// Petits signaux entre une deuxième copie lancée et l'appli qui tourne déjà.
     static class Signaux
     {
-        static readonly string[] Noms = { "Demo", "Quitter", "Etat", "Recharger", "Bonjour" };
+        static readonly string[] Noms = { "Demo", "Quitter", "Etat", "Recharger", "Parametres" };
 
         public static void Envoyer(string nom)
         {
@@ -162,10 +162,12 @@ namespace CurseurClaude
         readonly List<EventWaitHandle> signaux;
         readonly Dictionary<uint, string> noms = new Dictionary<uint, string>();
         ToolStripMenuItem miActif, miCaptures, miDemarrage;
+        readonly ToolStripMenuItem[] miStyles = new ToolStripMenuItem[3];
+        FenetreReglages fenetre;
         IntPtr hIcone = IntPtr.Zero;
         bool sessionVue, fini;
 
-        public Appli(bool demo)
+        public Appli(bool demo, bool parametres)
         {
             reglages = Reglages.Charger();
             Journal.Activer(reglages.JournalActif || File.Exists(Path.Combine(Reglages.Dossier, "journal.on")));
@@ -180,7 +182,7 @@ namespace CurseurClaude
             icone.Text = "Curseur orange de Claude";
             icone.ContextMenuStrip = CreerMenu();
             MettreIcone();
-            icone.MouseDoubleClick += delegate (object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) moteur.Demo(); };
+            icone.MouseDoubleClick += delegate (object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) OuvrirReglages(); };
             icone.Visible = true;
 
             if (!reglages.Existait)
@@ -190,7 +192,7 @@ namespace CurseurClaude
                 miDemarrage.Checked = Demarrage.EstActif();
                 reglages.Enregistrer();
                 icone.ShowBalloonTip(10000, "Le curseur orange de Claude est prêt",
-                    "Quand Claude prendra le contrôle de l'ordinateur, sa souris sera orange et la tienne restera là où tu l'as laissée. Double-clique sur la flèche orange près de l'horloge pour voir une démo.",
+                    "Quand Claude prendra le contrôle de l'ordinateur, sa souris sera orange et la tienne restera là où tu l'as laissée. Double-clique sur la flèche orange près de l'horloge pour choisir son apparence et voir une démo.",
                     ToolTipIcon.Info);
             }
 
@@ -201,6 +203,7 @@ namespace CurseurClaude
             veille.Tick += VeillerSession;
             veille.Start();
             if (demo) moteur.Demo();
+            if (parametres) OuvrirReglages();
         }
 
         ContextMenuStrip CreerMenu()
@@ -212,15 +215,30 @@ namespace CurseurClaude
             m.Items.Add(titre);
             m.Items.Add(new ToolStripSeparator());
 
+            ToolStripMenuItem parametres = new ToolStripMenuItem("Paramètres…");
+            parametres.Font = new Font(parametres.Font, FontStyle.Bold);
+            parametres.Click += delegate { OuvrirReglages(); };
+            m.Items.Add(parametres);
+
+            ToolStripMenuItem apparence = new ToolStripMenuItem("Apparence du curseur");
+            for (int i = 0; i < Styles.Tous.Length; i++)
+            {
+                string code = Styles.Tous[i];
+                ToolStripMenuItem it = new ToolStripMenuItem(Styles.Nom(code));
+                it.Click += delegate { ChoisirStyle(code); };
+                miStyles[i] = it;
+                apparence.DropDownItems.Add(it);
+            }
+            m.Items.Add(apparence);
+
             miActif = new ToolStripMenuItem("Activé");
             miActif.Checked = reglages.Actif;
             miActif.Click += delegate
             {
                 reglages.Actif = !reglages.Actif;
-                miActif.Checked = reglages.Actif;
                 reglages.Enregistrer();
                 moteur.Activer(reglages.Actif);
-                MettreIcone();
+                ActualiserMenu(true);
             };
             m.Items.Add(miActif);
 
@@ -238,9 +256,9 @@ namespace CurseurClaude
             miCaptures.Click += delegate
             {
                 reglages.Captures = !reglages.Captures;
-                miCaptures.Checked = reglages.Captures;
                 reglages.Enregistrer();
                 moteur.Captures(reglages.Captures);
+                ActualiserMenu(true);
             };
             m.Items.Add(miCaptures);
 
@@ -249,7 +267,7 @@ namespace CurseurClaude
             miDemarrage.Click += delegate
             {
                 Demarrage.Activer(!Demarrage.EstActif());
-                miDemarrage.Checked = Demarrage.EstActif();
+                ActualiserMenu(true);
             };
             m.Items.Add(miDemarrage);
             m.Items.Add(new ToolStripSeparator());
@@ -257,7 +275,49 @@ namespace CurseurClaude
             ToolStripMenuItem quitter = new ToolStripMenuItem("Quitter");
             quitter.Click += delegate { Quitter(); };
             m.Items.Add(quitter);
+            ActualiserMenu(false);
             return m;
+        }
+
+        void OuvrirReglages()
+        {
+            if (fenetre == null || fenetre.IsDisposed)
+            {
+                fenetre = new FenetreReglages(reglages, moteur, delegate { ActualiserMenu(false); });
+                fenetre.Show();
+            }
+            else
+            {
+                if (fenetre.WindowState == FormWindowState.Minimized) fenetre.WindowState = FormWindowState.Normal;
+                fenetre.Activate();
+            }
+        }
+
+        void ChoisirStyle(string code)
+        {
+            if (code == Styles.Perso && (string.IsNullOrEmpty(reglages.ImagePerso) || !File.Exists(reglages.ImagePerso)))
+            {
+                OuvrirReglages(); // il faut d'abord choisir une image
+                return;
+            }
+            reglages.Style = code;
+            reglages.Enregistrer();
+            moteur.Apparence();
+            ActualiserMenu(true);
+        }
+
+        /// Remet le menu (et la fenêtre Paramètres si elle est ouverte) dans l'état des réglages.
+        void ActualiserMenu(bool aussiLaFenetre)
+        {
+            if (miActif == null) return;
+            miActif.Checked = reglages.Actif;
+            miCaptures.Checked = reglages.Captures;
+            miDemarrage.Checked = Demarrage.EstActif();
+            string style = Styles.Normaliser(reglages.Style);
+            for (int i = 0; i < miStyles.Length; i++)
+                if (miStyles[i] != null) miStyles[i].Checked = Styles.Tous[i] == style;
+            if (icone != null) MettreIcone();
+            if (aussiLaFenetre && fenetre != null && !fenetre.IsDisposed) fenetre.Actualiser();
         }
 
         void Aide()
@@ -296,17 +356,13 @@ namespace CurseurClaude
                 case "Recharger":
                     reglages.CopierDe(Reglages.Charger());
                     Journal.Activer(reglages.JournalActif || File.Exists(Path.Combine(Reglages.Dossier, "journal.on")));
-                    miActif.Checked = reglages.Actif;
-                    miCaptures.Checked = reglages.Captures;
                     moteur.Activer(reglages.Actif);
                     moteur.Captures(reglages.Captures);
-                    moteur.Couleurs();
-                    MettreIcone();
+                    moteur.Apparence();
+                    ActualiserMenu(true);
                     Journal.Ecrire("réglages relus");
                     break;
-                case "Bonjour":
-                    icone.ShowBalloonTip(5000, "Déjà lancé", "Le curseur orange de Claude tourne déjà : c'est la flèche orange près de l'horloge.", ToolTipIcon.Info);
-                    break;
+                case "Parametres": OuvrirReglages(); break;
             }
         }
 

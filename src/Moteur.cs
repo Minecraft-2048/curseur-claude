@@ -96,7 +96,8 @@ namespace CurseurClaude
             {
                 pompe = new Control();
                 IntPtr h = pompe.Handle; // la fenêtre de messages du moteur naît dans ce fil
-                curseurs = new Curseurs(reglages.Couleur, reglages.Contour);
+                curseurs = new Curseurs(reglages);
+                if (curseurs.ErreurPerso != null) Journal.Erreur("image perso : " + curseurs.ErreurPerso);
                 bool cap = reglages.Captures;
                 Action verifier = () => Programmer(VerifierCalques);
                 fantome = new Calque("ton curseur", cap, verifier);
@@ -199,16 +200,28 @@ namespace CurseurClaude
             });
         }
 
-        public void Couleurs()
+        /// Le style, la couleur ou l'étiquette ont changé : on refait les curseurs de Claude.
+        public void Apparence()
         {
             Programmer(delegate
             {
-                if (modeClaude) return;
-                curseurs.ChangerCouleurs(reglages.Couleur, reglages.Contour);
+                curseurs.Configurer(reglages);
+                curseurs.Regenerer();
+                if (curseurs.ErreurPerso != null) Journal.Erreur("image perso : " + curseurs.ErreurPerso);
+                Journal.Ecrire("apparence : " + curseurs.StyleActif);
                 cleClaude = null;
                 DessinerClaude();
             });
         }
+
+        /// La flèche normale de Windows (pour les aperçus de la fenêtre Paramètres).
+        public ImageCurseur FlecheWindows
+        {
+            get { return curseurs == null ? null : curseurs.Source(32512); }
+        }
+
+        /// Le style vraiment utilisé et l'éventuelle erreur de l'image perso.
+        public string StyleActif { get { return curseurs == null ? reglages.Style : curseurs.StyleActif; } }
 
         /// L'outil de contrôle de Claude est-il ouvert ? (sa grande vitre transparente est à l'écran)
         public void Session(bool active)
@@ -509,8 +522,9 @@ namespace CurseurClaude
             int pw = tp.Width + (int)Math.Ceiling(2 * e), ph = tp.Height + (int)Math.Ceiling(3 * e);
             bool gauche = posClaude.X + (int)(13 * e) + pw > ecran.Right;
             bool haut = posClaude.Y + (int)(20 * e) + ph > ecran.Bottom;
-            bool fleche = claudeRepos && curseurs.Fleche != null;
-            string cle = texte + "|" + fleche + "|" + gauche + "|" + haut + "|" + e + "|" + reglages.Couleur;
+            ImageCurseur fl = curseurs.Fleche;
+            bool fleche = claudeRepos && fl != null;
+            string cle = texte + "|" + fleche + "|" + gauche + "|" + haut + "|" + e + "|" + reglages.Couleur + "|" + (fl == null ? 0 : fl.GetHashCode());
             if (cle == cleClaude && claude.Affiche)
             {
                 claude.Deplacer(posClaude.X - origineX, posClaude.Y - origineY);
@@ -518,7 +532,7 @@ namespace CurseurClaude
             }
             cleClaude = cle;
 
-            int ax = -curseurs.FlecheHx, ay = -curseurs.FlecheHy, aw = curseurs.FlecheL, ah = curseurs.FlecheH;
+            int ax = fleche ? -fl.Hx : 0, ay = fleche ? -fl.Hy : 0, aw = fleche ? fl.L : 0, ah = fleche ? fl.H : 0;
             int lx = gauche ? -(int)(6 * e) - pw : (int)(13 * e);
             int ly = haut ? -(int)(6 * e) - ph : (int)(20 * e);
             int minX = Math.Min(0, lx), minY = Math.Min(0, ly), maxX = Math.Max(1, lx + pw), maxY = Math.Max(1, ly + ph);
@@ -535,7 +549,7 @@ namespace CurseurClaude
                 {
                     g.InterpolationMode = InterpolationMode.NearestNeighbor;
                     g.PixelOffsetMode = PixelOffsetMode.Half;
-                    using (Bitmap f = Rendu.VersBitmap(curseurs.Fleche, aw, ah))
+                    using (Bitmap f = Rendu.VersBitmap(fl.Px, aw, ah))
                         g.DrawImage(f, new Rectangle(ax - minX, ay - minY, aw, ah), 0, 0, aw, ah, GraphicsUnit.Pixel);
                     g.PixelOffsetMode = PixelOffsetMode.Default;
                 }
